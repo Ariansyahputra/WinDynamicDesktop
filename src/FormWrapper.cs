@@ -13,7 +13,7 @@ namespace WinDynamicDesktop
     class FormWrapper : ApplicationContext
     {
         private string registryStartupLocation = @"Software\Microsoft\Windows\CurrentVersion\Run";
-        private bool startOnBoot;
+        private bool startOnBoot = DesktopHelper.IsStartOnBootEnabled();
 
         private ProgressDialog downloadDialog;
         private InputDialog locationDialog;
@@ -28,10 +28,6 @@ namespace WinDynamicDesktop
 
             JsonConfig.LoadConfig();
             wcsService = new WallpaperChangeScheduler();
-
-            RegistryKey startupKey = Registry.CurrentUser.OpenSubKey(registryStartupLocation);
-            startOnBoot = startupKey.GetValue("WinDynamicDesktop") != null;
-            startupKey.Close();
 
             InitializeComponent();
 
@@ -66,13 +62,18 @@ namespace WinDynamicDesktop
                 new MenuItem("&Update Location", OnLocationItemClick),
                 new MenuItem("&Refresh Wallpaper", OnRefreshItemClick),
                 new MenuItem("-"),
-                new MenuItem("&Start on Boot", OnStartupItemClick),
-                new MenuItem("-"),
                 new MenuItem("E&xit", OnExitItemClick)
             });
-
             notifyIcon.ContextMenu.MenuItems[0].Enabled = false;
-            notifyIcon.ContextMenu.MenuItems[5].Checked = startOnBoot;
+
+            if (!UwpHelper.IsRunningAsUwp())
+            {
+                MenuItem startupItem = new MenuItem("&Start on Boot", OnStartupItemClick);
+                startupItem.Checked = startOnBoot;
+
+                notifyIcon.ContextMenu.MenuItems.Add(5, startupItem);
+                notifyIcon.ContextMenu.MenuItems.Add(6, new MenuItem("-"));
+            }
         }
 
         private void OnLocationItemClick(object sender, EventArgs e)
@@ -179,19 +180,8 @@ namespace WinDynamicDesktop
 
         private void ToggleStartOnBoot()
         {
-            RegistryKey startupKey = Registry.CurrentUser.OpenSubKey(registryStartupLocation, true);
-
-            if (!startOnBoot)
-            {
-                string exePath = Path.Combine(Directory.GetCurrentDirectory(),
-                    Environment.GetCommandLineArgs()[0]);
-                startupKey.SetValue("WinDynamicDesktop", exePath);
-            }
-            else
-            {
-                startupKey.DeleteValue("WinDynamicDesktop");
-            }
-
+            DesktopHelper.ToggleStartOnBoot(!startOnBoot);
+            
             startOnBoot = !startOnBoot;
             notifyIcon.ContextMenu.MenuItems[5].Checked = startOnBoot;
         }
